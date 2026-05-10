@@ -11,26 +11,9 @@ modules:
     files:
       - source: system
         destination: /
-        
-  - type: dnf
-    repos:
-      copr:
-        - atim/starship
-        - lihaohong/yazi
-    install:
-      packages:
-        - android-tools
-        - bat
-        - btrfs-assistant
-        - duf
-        - gdu
-        - imv
-        - micro
-        - realtime-setup   # `sudo usermod -a -G realtime $(whoami)`
-        - starship
-        - yazi
 
-  - from-file: ./development-modules.yml
+  - from-file: ./common/extra-modules.yml
+  - from-file: ./common/development-modules.yml
   
   - type: brew
     nofile-limits: true
