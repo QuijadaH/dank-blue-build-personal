@@ -1,1 +1,0 @@
-LABEL={current_label}  /var/mnt/SAMSUNG@STORAGE  btrfs  subvol=/storage,noatime,ssd,discard=async,space_cache=v2  0 0

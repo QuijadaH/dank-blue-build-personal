@@ -19,6 +19,10 @@ modules:
     nofile-limits: true
     brew-analytics: false
 
+  - type: script
+    snippets:
+      - "chmod +x /etc/skel/setup-storage.sh"
+
   - type: systemd
     user:
       enabled:
