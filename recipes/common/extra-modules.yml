@@ -12,6 +12,7 @@ modules:
         - duf
         - gdu
         - imv
+        - meson
         - micro
         - realtime-setup   # `sudo usermod -a -G realtime $(whoami)`
         - starship
