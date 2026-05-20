@@ -1,4 +1,9 @@
 modules:
+  - type: files
+    files:
+      - source: system
+        destination: /
+
   - type: dnf
     repos:
       copr:
@@ -14,16 +19,13 @@ modules:
         - imv
         - meson
         - micro
-        - realtime-setup   # `sudo usermod -a -G realtime $(whoami)`
+        - realtime-setup
         - starship
         - yazi
 
   - type: default-flatpaks
     configurations:
-      - notify: false
-        scope: system
-        repo:
-          title: Flathub (system)
+      - scope: user
         install: 
           - com.github.wwmm.easyeffects
           - org.equicord.equibop
@@ -31,3 +33,17 @@ modules:
           - com.vysp3r.ProtonPlus
           - com.github.Matoking.protontricks
           - com.valvesoftware.Steam
+
+  - type: brew
+    nofile-limits: true
+    brew-analytics: false
+
+  - type: systemd
+    system:
+      enabled:
+        - storage-setup.service
+
+  - type: script
+    snippets:
+      - "chmod -R +x /usr/libexec/dank-bluebuild"
+      - "chmod +x /usr/local/bin/post-login-setup"

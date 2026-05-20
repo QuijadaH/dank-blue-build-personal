@@ -1,7 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Setup
-Exec=$HOME/.local/bin/desktop-setup.sh
-Icon=utilities-terminal
-Terminal=true
-Categories=Utility;

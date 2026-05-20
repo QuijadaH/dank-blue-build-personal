@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+LOG_FILE="/var/lib/dank-bluebuild/storage-setup.log"
+exec > >(tee -a "$LOG_FILE") 2>&1 || echo "Failed to initialize logging." >&2  
+
+TARGET_UID=1000
+TARGET_USER=$(getent passwd "$TARGET_UID" | cut -d: -f1)
+
+if [[ -z "${TARGET_USER:-}" ]]; then
+  echo "No user found with UID $TARGET_UID. Exiting." >&2
+  exit 1
+fi
+
+HOME_DIR=$(getent passwd "$TARGET_UID" | cut -d: -f6)
+
+if [[ ! -d "$HOME_DIR" ]]; then
+  echo "Home directory $HOME_DIR for user $TARGET_USER does not exist. Exiting." >&2
+  exit 1
+fi
+
+mkdir -p /var/lib/dank-bluebuild
+STATE_FILE="/var/lib/dank-bluebuild/storage-setup.done"
+
+if [[ -f "$STATE_FILE" ]]; then
+  echo "Personal storage setup has already been completed. Exiting."
+  exit 0
+fi
+
+rsync /usr/share/dank-bluebuild-personal/home-template/ "$HOME_DIR"/
+chown -R 1000:1000 "$HOME_DIR"
+chmod -R 700 "$HOME_DIR"
+
+FSTAB="/etc/fstab"
+cp "$FSTAB" "${FSTAB}.$(date +%F-%H%M%S).bak"
+
+WD_1TB_SUCCESS=false
+SAMSUNG_SUCCESS=false
+
+if ! blkid -L "WD-1TB" >/dev/null 2>&1; then
+  echo "Cannot find WD-1TB. Skipping entries for WD-1TB."
+else
+  mkdir -p "$HOME_DIR"/.mount/WD-1TB@FILES
+  mkdir -p "$HOME_DIR"/.mount/WD-1TB@SEEDS
+  mkdir -p "$HOME_DIR"/.mount/WD-1TB@STEAM
+
+  ENTRIES=(
+  "LABEL=WD-1TB  $HOME_DIR/.mount/WD-1TB@FILES  btrfs  subvol=/@files,noatime,X-mount.mkdir,compress=zstd:3,autodefrag,space_cache=v2  0 0"
+  "LABEL=WD-1TB  $HOME_DIR/.mount/WD-1TB@SEEDS  btrfs  subvol=/@seeds,noatime,X-mount.mkdir,compress=zstd:3,autodefrag,space_cache=v2  0 0"
+  "LABEL=WD-1TB  $HOME_DIR/.mount/WD-1TB@STEAM  btrfs  subvol=/@steam,noatime,X-mount.mkdir,autodefrag,space_cache=v2  0 0"
+  )
+
+  for entry in "${ENTRIES[@]}"; do
+    device=$(awk '{print $1}' <<< "$entry")
+    mountpoint=$(awk '{print $2}' <<< "$entry")
+
+    if grep -Eq "^${device}[[:space:]]+${mountpoint}[[:space:]]" "$FSTAB"; then
+      echo "'${device} ${mountpoint}' already exists in $FSTAB"
+    else
+      echo "$entry" >> "$FSTAB"
+    fi
+  done
+
+  WD_1TB_SUCCESS=true
+fi
+
+declare TEMP_MOUNTPOINT
+
+# shellcheck disable=SC2329
+cleanup() {
+  umount "$TEMP_MOUNTPOINT" 2>/dev/null || true
+  rmdir "$TEMP_MOUNTPOINT" 2>/dev/null || true
+}
+
+trap cleanup EXIT   
+
+if findmnt -t btrfs /var >/dev/null 2>&1; then   
+	SAMSUNG_UUID=$(findmnt -no UUID -T /var)
+  TEMP_MOUNTPOINT=$(mktemp -d)
+  mount -o subvolid=5 UUID="$SAMSUNG_UUID" "$TEMP_MOUNTPOINT"
+  
+
+  if btrfs subvolume list "$TEMP_MOUNTPOINT"  | awk '{print $NF}' | grep -qx "storage"; then
+    echo "Btrfs subvolume '/storage' already exists in UUID $SAMSUNG_UUID."
+  else
+    echo "Creating Btrfs subvolume '/storage' in UUID $SAMSUNG_UUID..."
+    btrfs subvolume create "$TEMP_MOUNTPOINT/storage"
+  fi
+
+  mkdir -p "$HOME_DIR"/.mount/SAMSUNG@STORAGE
+  SAMSUNG_ENTRY="UUID=$SAMSUNG_UUID  $HOME_DIR/.mount/SAMSUNG@STORAGE  btrfs  subvol=/storage,noatime,X-mount.mkdir,ssd,discard=async,space_cache=v2  0 0"
+
+  device=$(awk '{print $1}' <<< "$SAMSUNG_ENTRY")
+  mountpoint=$(awk '{print $2}' <<< "$SAMSUNG_ENTRY")
+
+  if grep -Eq "^${device}[[:space:]]+${mountpoint}[[:space:]]" "$FSTAB"; then
+    echo "'${device} ${mountpoint}' already exists in $FSTAB"
+  else
+    echo "$SAMSUNG_ENTRY" >> "$FSTAB"
+  fi
+  
+  SAMSUNG_SUCCESS=true
+  cleanup
+else
+  echo "Cannot find or create the storage subvolume for the Samsung drive. Skipping entry for the Samsung drive."
+fi	
+
+if [[ "$WD_1TB_SUCCESS" == true ]] || [[ "$SAMSUNG_SUCCESS" == true ]]; then
+  echo "Done updating /etc/fstab."
+  echo "Validating new mounts..."
+
+  if [[ "$WD_1TB_SUCCESS" == true ]]; then
+    if ! mount "$HOME_DIR"/.mount/WD-1TB@FILES; then
+      echo "Failed to mount $HOME_DIR/.mount/WD-1TB@FILES" >&2
+      touch "$HOME_DIR"/.mount/WD-1TB@FILES/.mount_failed
+    else
+      echo "Successfully mounted $HOME_DIR/.mount/WD-1TB@FILES"
+
+      chown -R 1000:1000 "$HOME_DIR"/.mount/WD-1TB@FILES
+      chmod -R 700 "$HOME_DIR"/.mount/WD-1TB@FILES
+      echo "Set ownership and permissions for $HOME_DIR/.mount/WD-1TB@FILES"
+
+      echo "Setting up symlinks for WD-1TB@FILES..."
+
+      rmdir "$HOME_DIR"/Desktop "$HOME_DIR"/Documents "$HOME_DIR"/Downloads "$HOME_DIR"/Music "$HOME_DIR"/Pictures "$HOME_DIR"/Public "$HOME_DIR"/Templates "$HOME_DIR"/Videos 2>/dev/null || true
+      echo "Removed existing standard directories in $HOME_DIR (if they existed)."
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Desktop "$HOME_DIR"/Desktop
+      echo "Created symlink: $HOME_DIR/Desktop -> $HOME_DIR/.mount/WD-1TB@FILES/Desktop"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Documents "$HOME_DIR"/Documents
+      echo "Created symlink: $HOME_DIR/Documents -> $HOME_DIR/.mount/WD-1TB@FILES/Documents"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Downloads "$HOME_DIR"/Downloads
+      echo "Created symlink: $HOME_DIR/Downloads -> $HOME_DIR/.mount/WD-1TB@FILES/Downloads"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Music "$HOME_DIR"/Music
+      echo "Created symlink: $HOME_DIR/Music -> $HOME_DIR/.mount/WD-1TB@FILES/Music"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Pictures "$HOME_DIR"/Pictures
+      echo "Created symlink: $HOME_DIR/Pictures -> $HOME_DIR/.mount/WD-1TB@FILES/Pictures"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Public "$HOME_DIR"/Public
+      echo "Created symlink: $HOME_DIR/Public -> $HOME_DIR/.mount/WD-1TB@FILES/Public"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Templates "$HOME_DIR"/Templates
+      echo "Created symlink: $HOME_DIR/Templates -> $HOME_DIR/.mount/WD-1TB@FILES/Templates"
+
+      ln -s "$HOME_DIR"/.mount/WD-1TB@FILES/Videos "$HOME_DIR"/Videos
+      echo "Created symlink: $HOME_DIR/Videos -> $HOME_DIR/.mount/WD-1TB@FILES/Videos"
+    fi
+
+    if ! mount "$HOME_DIR"/.mount/WD-1TB@SEEDS; then
+      echo "Failed to mount $HOME_DIR/.mount/WD-1TB@SEEDS" >&2
+      touch "$HOME_DIR"/.mount/WD-1TB@SEEDS.mount_failed
+    else
+      echo "Successfully mounted $HOME_DIR/.mount/WD-1TB@SEEDS"
+
+      chown -R 1000:1000 "$HOME_DIR"/.mount/WD-1TB@SEEDS
+      chmod -R 700 "$HOME_DIR"/.mount/WD-1TB@SEEDS
+      echo "Set ownership and permissions for $HOME_DIR/.mount/WD-1TB@SEEDS"
+    fi
+
+    if ! mount "$HOME_DIR"/.mount/WD-1TB@STEAM; then
+      echo "Failed to mount $HOME_DIR/.mount/WD-1TB@STEAM" >&2
+      touch "$HOME_DIR"/.mount/WD-1TB@STEAM.mount_failed
+    else
+      echo "Successfully mounted $HOME_DIR/.mount/WD-1TB@STEAM"
+
+      chown -R 1000:1000 "$HOME_DIR"/.mount/WD-1TB@STEAM
+      chmod -R 700 "$HOME_DIR"/.mount/WD-1TB@STEAM
+      echo "Set ownership and permissions for $HOME_DIR/.mount/WD-1TB@STEAM"
+    fi
+  fi
+
+  if [[ "$SAMSUNG_SUCCESS" == true ]]; then
+    if ! mount "$HOME_DIR"/.mount/SAMSUNG@STORAGE; then
+      echo "Failed to mount $HOME_DIR/.mount/SAMSUNG@STORAGE" >&2
+      touch "$HOME_DIR"/.mount/SAMSUNG@STORAGE.mount_failed
+    else
+      echo "Successfully mounted $HOME_DIR/.mount/SAMSUNG@STORAGE"
+
+      chown -R 1000:1000 "$HOME_DIR"/.mount/SAMSUNG@STORAGE
+      chmod -R 700 "$HOME_DIR"/.mount/SAMSUNG@STORAGE
+      echo "Set ownership and permissions for $HOME_DIR/.mount/SAMSUNG@STORAGE"
+    fi
+  fi
+
+  touch "$STATE_FILE"
+else
+  echo "No entries were added to /etc/fstab."
+fi
+
+exit 0

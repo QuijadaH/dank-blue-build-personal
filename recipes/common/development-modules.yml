@@ -13,10 +13,7 @@ modules:
 
   - type: default-flatpaks
     configurations:
-      - notify: false
-        scope: system
-        repo:
-          title: Flathub (system)
+      - scope: user
         install:
           - io.podman_desktop.PodmanDesktop
           - me.iepure.devtoolbox

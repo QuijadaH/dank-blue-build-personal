@@ -1,35 +1,18 @@
 ---
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
-name: dank-blue-build-hyprland-personal
+name: personal-dank-bluebuild-hyprland
 description: This is my personal OS image.
 
-base-image: ghcr.io/quijadah/dank-blue-build-hyprland
+base-image: ghcr.io/quijadah/dank-bluebuild-hyprland
 image-version: latest
 
 modules:
   - type: files
     files:
-      - source: system
+      - source: hyprland
         destination: /
 
-  - from-file: ./common/extra-modules.yml
+  - from-file: ./common/common-modules.yml
   - from-file: ./common/development-modules.yml
-  
-  - type: brew
-    nofile-limits: true
-    brew-analytics: false
-
-  - type: script
-    snippets:
-      - "chmod +x /etc/skel/.local/bin/desktop-setup.sh"
-      - "chmod +x /usr/libexec/dank-blue-build-personal/mounts-setup"
-
-  - type: systemd
-    system:
-      enabled:
-        - mounts-setup.service
-    user:
-      enabled:
-        - easy-effects.service
 
   - type: signing

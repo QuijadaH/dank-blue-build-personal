@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+# set -euo pipefail
+
+# abort_script() {
+#     echo "Script interrupted." >&2
+#     exit 1
+# }
+# trap abort_script INT
+
+# # The main setup script relies on the above to function properly.
+# # You can write whatever you need. Example below:
+
+# failed() {
+#     echo "Failed to execute command." >&2
+#     exit 1
+# }
+
+# # For non-sudo commands
+# if [ "$EUID" -ne 0 ]; then
+#     command || failed
+# else
+#     sudo -u "$SUDO_USER" command || failed 
+# fi
+
+# # For sudo commands
+# if [ "$EUID" -ne 0 ]; then
+#     sudo command || failed
+# else
+#     command || failed 
+# fi
+
+# echo "Successfully executed command."
+# exit 0
+
+echo "Attempting to restore ${USER}'s backup..."
+
+TEMP_MOUNTPOINT=$(mktemp -d)
+mount -o subvolid=5 -L WD-1TB "$TEMP_MOUNTPOINT"
+cleanup() {
+    umount "$TEMP_MOUNTPOINT" 2>/dev/null || true
+    rmdir "$TEMP_MOUNTPOINT" 2>/dev/null || true
+}
+trap cleanup EXIT
+echo "Temporarily mounted WD-1TB at '$TEMP_MOUNTPOINT'."
+
+if btrfs subvolume list "$TEMP_MOUNTPOINT"  | awk '{print $NF}' | grep -qx "@samsung_backup"; then
+    echo "Verified that Btrfs subvolume '@samsung_backup' exists in WD-1TB."
+else
+    echo "Btrfs subvolume '@samsung_backup' does not exist in WD-1TB."
+    echo "Nothing to restore."
+    echo "Press ESC to exit..."
+    wait_for_escape
+    echo "Exiting..."
+    exit 1
+fi
+
+if mountpoint -q "$HOME/.mount/SAMSUNG@STORAGE"; then
+    echo "Verified that '~/.mount/SAMSUNG@STORAGE' is a successful mountpoint."
+else
+    echo "Nothing was mounted at '~/.mount/SAMSUNG@STORAGE'."
+    echo "Nowhere to restore to."
+    echo "Press ESC to exit..."
+    wait_for_escape
+    echo "Exiting..."
+    exit 1
+fi
+
+echo "Rsync starting..."
+
+if rsync -ah --info=progress2 "$TEMP_MOUNTPOINT"/@samsung_backup/ "$HOME"/.mount/SAMSUNG@STORAGE/; then
+    echo "Successfully restored data from '@samsung_backup' to '~/.mount/SAMSUNG@STORAGE'."
+else
+    echo "Failed to restore data from '@samsung_backup' to '~/.mount/SAMSUNG@STORAGE'." >&2
+    echo "Press ESC to exit..."
+    wait_for_escape
+    echo "Exiting..."
+    exit 1
+fi

@@ -2,11 +2,11 @@
 Description=Setup home directory mountpoints for UID 1000
 After=local-fs.target
 Before=greetd.service
-ConditionPathExists=!/var/lib/dank-blue-build-personal/mounts-setup-done
+ConditionPathExists=!/var/lib/dank-bluebuild/storage-setup.done
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/dank-blue-build-personal/mounts-setup
+ExecStart=/usr/libexec/dank-bluebuild/storage-setup
 
 [Install]
 WantedBy=multi-user.target

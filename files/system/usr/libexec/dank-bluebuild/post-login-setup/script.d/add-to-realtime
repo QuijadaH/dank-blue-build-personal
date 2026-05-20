@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# shellcheck disable=SC2329
+abort_script() {
+    echo "Script interrupted." >&2
+    exit 1
+}
+trap abort_script INT
+
+echo "Adding $USER to realtime..."
+
+failed() {
+    echo "Failed to add $USER to realtime." >&2
+    exit 1
+}
+
+if [ "$EUID" -ne 0 ]; then
+    sudo usermod -a -G realtime "$(whoami)" || failed
+else
+    usermod -a -G realtime "$(whoami)" || failed 
+fi
+
+echo "Successfully add $USER to realtime."
+exit 0

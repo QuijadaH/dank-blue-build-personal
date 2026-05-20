@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# shellcheck disable=SC2329
+abort_script() {
+    echo "Script interrupted." >&2
+    exit 1
+}
+trap abort_script INT
+
+echo "Adding Fastfetch to '~/.bashrc'..."
+
+failed() {
+    echo "Failed to add Fastfetch to '~/.bashrc'." >&2
+    exit 1
+}
+
+echo "fastfetch" >> ~/.bashrc || failed
+
+echo "Successfully added Fastfetch to '~/.bashrc'."
+exit 0

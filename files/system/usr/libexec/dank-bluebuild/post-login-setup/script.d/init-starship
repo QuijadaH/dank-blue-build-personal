@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# shellcheck disable=SC2329
+abort_script() {
+    echo "Script interrupted." >&2
+    exit 1
+}
+trap abort_script INT
+
+echo "Initializing Starship..."
+
+failed() {
+    echo "Failed to initialize Starship in '~/.bashrc'." >&2
+    exit 1
+}
+
+echo "eval \"\$(starship init bash)\"" >> "$HOME"/.bashrc || failed
+
+echo "Successfully initialized Starship in '~/.bashrc'."
+exit 0
