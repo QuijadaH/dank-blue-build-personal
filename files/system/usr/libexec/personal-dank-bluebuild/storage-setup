@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-LOG_FILE="/var/lib/dank-bluebuild/storage-setup.log"
+LOG_FILE="/var/lib/personal-dank-bluebuild/storage-setup.log"
 exec > >(tee -a "$LOG_FILE") 2>&1 || echo "Failed to initialize logging." >&2  
 
 TARGET_UID=1000
@@ -20,15 +20,15 @@ if [[ ! -d "$HOME_DIR" ]]; then
   exit 1
 fi
 
-mkdir -p /var/lib/dank-bluebuild
-STATE_FILE="/var/lib/dank-bluebuild/storage-setup.done"
+mkdir -p /var/lib/personal-dank-bluebuild
+STATE_FILE="/var/lib/personal-dank-bluebuild/storage-setup.done"
 
 if [[ -f "$STATE_FILE" ]]; then
   echo "Personal storage setup has already been completed. Exiting."
   exit 0
 fi
 
-rsync /usr/share/dank-bluebuild-personal/home-template/ "$HOME_DIR"/
+rsync /usr/share/personal-dank-bluebuild/my-home/ "$HOME_DIR"/
 chown -R 1000:1000 "$HOME_DIR"
 chmod -R 700 "$HOME_DIR"
 

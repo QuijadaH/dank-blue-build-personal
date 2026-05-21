@@ -3,11 +3,12 @@
 set -euo pipefail
 
 # shellcheck disable=SC2329
-abort_script() {
+on_interrupt() {
+    trap - INT TERM
     echo "Script interrupted." >&2
-    exit 1
+    exit 130
 }
-trap abort_script INT
+trap on_interrupt INT TERM
 
 echo "Initializing Starship..."
 

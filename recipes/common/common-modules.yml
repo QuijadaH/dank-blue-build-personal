@@ -46,4 +46,5 @@ modules:
   - type: script
     snippets:
       - "chmod -R +x /usr/libexec/dank-bluebuild"
+      - "chmod -R +x /usr/libexec/personal-dank-bluebuild"
       - "chmod +x /usr/local/bin/post-login-setup"
