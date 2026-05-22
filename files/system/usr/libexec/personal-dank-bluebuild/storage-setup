@@ -28,7 +28,7 @@ if [[ -f "$STATE_FILE" ]]; then
   exit 0
 fi
 
-rsync /usr/share/personal-dank-bluebuild/my-home/ "$HOME_DIR"/
+mv /etc/personal-dank-bluebuild/my-home/* "$HOME_DIR"/
 chown -R 1000:1000 "$HOME_DIR"
 chmod -R 700 "$HOME_DIR"
 
